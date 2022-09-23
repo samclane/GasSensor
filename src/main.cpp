@@ -47,16 +47,29 @@ void motorOff()
   digitalWrite(FAN_PIN, LOW);
 }
 
-void inhale(unsigned int hold = 1000)
+void inhale(unsigned int dutyCycle = 1000)
 {
   static unsigned int startTime = millis();
-  if (millis() - startTime > hold)
+  static unsigned int endTime = millis();
+  static bool inhaleState = false;
+
+  if (inhaleState)
   {
-    motorOff();
+    if (millis() - endTime > dutyCycle)
+    {
+      inhaleState = false;
+      motorOff();
+      startTime = millis();
+    }
   }
   else
   {
-    motorOn();
+    if (millis() - startTime > dutyCycle)
+    {
+      inhaleState = true;
+      motorOn();
+      endTime = millis();
+    }
   }
 }
 
@@ -140,7 +153,7 @@ void setup()
 
 void loop()
 {
-
+  inhale();
   float buffer[EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE] = {0};
   for (size_t ix = 0; ix < EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE; ix += 4)
   {
