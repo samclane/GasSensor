@@ -16,6 +16,7 @@ bool aquireMode = true;
 TaskHandle_t Handle_readTask;
 TaskHandle_t Handle_inhaleTask;
 TaskHandle_t Handle_classifyTask;
+TaskHandle_t Handle_serialAcquireTask;
 
 // Create an enum for each gas type
 enum GasType
@@ -90,7 +91,7 @@ static void readSensorsThread(void *pvParameters)
     {
         gasData[NO2].concentration = gas.getGM102B();
         gasData[C2H5OH].concentration = gas.getGM302B();
-        gasData[VOC].concentration = gas.getGM302B();
+        gasData[VOC].concentration = gas.getGM502B();
         gasData[CO].concentration = gas.getGM702B();
     }
 }
@@ -129,18 +130,7 @@ static void classifyThread(void *pvParameters)
             buffer[ix + 1] = gasData[C2H5OH].concentration;
             buffer[ix + 2] = gasData[VOC].concentration;
             buffer[ix + 3] = gasData[CO].concentration;
-
-            if (aquireMode)
-            {
-                for (int i = 0; i < 4; i++)
-                {
-                    Serial.print(gasData[i].concentration);
-                    if (i < 3)
-                        Serial.print(",");
-                }
-                Serial.println();
-            }
-            delayMicroseconds(next_tick - micros());
+            vTaskDelay((next_tick - micros()) / portTICK_PERIOD_US);
         }
 
         signal_t signal;
@@ -179,6 +169,26 @@ static void classifyThread(void *pvParameters)
     }
 }
 
+static void serialAcquireThread(void *pvParameters)
+{
+    Serial.println("Serial Acquire Mode");
+    while (1)
+    {
+        if (aquireMode)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                Serial.print(gasData[i].concentration);
+                if (i < 3)
+                    Serial.print(",");
+            }
+            Serial.println();
+        }
+        // vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    
+}
+
 void beep(unsigned int hold = 1000)
 {
     static unsigned int startTime = millis();
@@ -197,8 +207,8 @@ void setup()
 {
     Serial.begin(38400);
     vNopDelayMS(1000); // prevents usb driver crash on startup, do not omit this
-    // while (!Serial)
-    //   ; // wait for serial port to connect. Needed for native USB port only
+    while (!Serial)
+      ; // wait for serial port to connect. Needed for native USB port only
 
     pinMode(FAN_PIN, OUTPUT);
 
@@ -230,9 +240,10 @@ void setup()
     // finally
     beep(500);
 
-    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_readTask);
+    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_readTask);
+    xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_classifyTask);
+    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_serialAcquireTask);
     xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
-    xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_classifyTask);
     vTaskStartScheduler();
 }
 
