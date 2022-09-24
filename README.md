@@ -12,6 +12,7 @@ Throw these in the /lib folder
 
 - [Seed Arduino LCD](https://github.com/Seeed-Studio/Seeed_Arduino_LCD)
 - [Seeed Arduino MultiGas](https://github.com/Seeed-Studio/Seeed_Arduino_MultiGas)
+- [Seeed_Arduino_FreeRTOS](https://github.com/Seeed-Studio/Seeed_Arduino_FreeRTOS)
 - [Gas Classifier](https://studio.edgeimpulse.com/public/65919/latest/deployment)
   - To build, select "Arduino Library" at the top, the "Build" at the bottom. Extract the resulting folder to your `/lib` folder
 
