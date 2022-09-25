@@ -18,6 +18,7 @@ TaskHandle_t Handle_inhaleTask;
 TaskHandle_t Handle_classifyTask;
 TaskHandle_t Handle_serialAcquireTask;
 TaskHandle_t Handle_displayTask;
+TaskHandle_t Handle_readInputTask;
 
 // Create an enum for each gas type
 enum GasType
@@ -60,6 +61,7 @@ void motorOff()
 void printGasDataToScreen(GasData gasData[])
 {
     tft.setTextSize(2);
+    tft.println(aquireMode ? "Aquire Mode  " : "Classify Mode");
     tft.println("Gas Concentration:");
     for (int i = 0; i < 4; i++)
     {
@@ -186,7 +188,6 @@ static void classifyThread(void *pvParameters)
 
 static void serialAcquireThread(void *pvParameters)
 {
-    Serial.println("Serial Acquire Mode");
     while (1)
     {
         if (aquireMode)
@@ -199,7 +200,7 @@ static void serialAcquireThread(void *pvParameters)
             }
             Serial.println();
         }
-        // vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(portTICK_PERIOD_MS);
     }
 }
 
@@ -211,6 +212,49 @@ static void displayThread(void *pvParameters)
         tft.println();
         printResultToScreen(&result);
         vTaskDelay((EI_CLASSIFIER_INTERVAL_MS) / portTICK_PERIOD_MS);
+    }
+}
+
+static void readInputThread(void *pvParameters)
+{
+    // read buttons and 5-way switch
+    while (1)
+    {
+        if (digitalRead(WIO_KEY_A) == LOW)
+        {
+            aquireMode = true;
+            Serial.println("Acquire Mode");
+        }
+        if (digitalRead(WIO_KEY_B) == LOW)
+        {
+            aquireMode = false;
+            Serial.println("Inferencing Mode");
+        }
+        if (digitalRead(WIO_KEY_C) == LOW)
+        {
+            Serial.println("Reset");
+        }
+        if (digitalRead(WIO_5S_UP) == LOW)
+        {
+            Serial.println("Up");
+        }
+        if (digitalRead(WIO_5S_DOWN) == LOW)
+        {
+            Serial.println("Down");
+        }
+        if (digitalRead(WIO_5S_LEFT) == LOW)
+        {
+            Serial.println("Left");
+        }
+        if (digitalRead(WIO_5S_RIGHT) == LOW)
+        {
+            Serial.println("Right");
+        }
+        if (digitalRead(WIO_5S_PRESS) == LOW)
+        {
+            Serial.println("Press");
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
 
@@ -251,11 +295,12 @@ void setup()
     // finally
     beep(500);
 
-    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_readTask);
+    xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
     xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
-    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_serialAcquireTask);
-    xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 6, &Handle_displayTask);
-    xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
+    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_readTask);
+    xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_inhaleTask);
+    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_readInputTask);
+    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_serialAcquireTask);
     vTaskStartScheduler();
 }
 
