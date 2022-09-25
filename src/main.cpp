@@ -17,6 +17,7 @@ TaskHandle_t Handle_readTask;
 TaskHandle_t Handle_inhaleTask;
 TaskHandle_t Handle_classifyTask;
 TaskHandle_t Handle_serialAcquireTask;
+TaskHandle_t Handle_displayTask;
 
 // Create an enum for each gas type
 enum GasType
@@ -37,11 +38,14 @@ struct GasData
     bool alarm;
 };
 
+// NO2,C2H5OH,VOC,CO
 GasData gasData[] = {
     {NO2, "NO2", 0.0, 650.0, 0.0, false},
     {C2H5OH, "C2H5OH", 0.0, 765.0, 0.0, false},
     {VOC, "VOC", 0.0, 775.0, 0.0, false},
     {CO, "CO", 0.0, 850.0, 0.0, false}};
+
+ei_impulse_result_t result = {0};
 
 void motorOn()
 {
@@ -82,6 +86,20 @@ void printResultToScreen(ei_impulse_result_t *result)
     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++)
     {
         tft.printf("%s: %.2f\n", result->classification[ix].label, result->classification[ix].value);
+    }
+}
+
+void beep(unsigned int hold = 1000)
+{
+    static unsigned int startTime = millis();
+    if (millis() - startTime > hold)
+    {
+        analogWrite(WIO_BUZZER, 128);
+        startTime = millis();
+    }
+    else
+    {
+        analogWrite(WIO_BUZZER, 0);
     }
 }
 
@@ -142,7 +160,7 @@ static void classifyThread(void *pvParameters)
         }
 
         // Run the classifier
-        ei_impulse_result_t result = {0};
+        result = {0};
 
         err = run_classifier(&signal, &result, false);
         if (err != EI_IMPULSE_OK)
@@ -163,9 +181,6 @@ static void classifyThread(void *pvParameters)
                 ei_printf("    %s: %.5f\n", result.classification[ix].label, result.classification[ix].value);
             }
         }
-        printGasDataToScreen(gasData);
-        tft.println();
-        printResultToScreen(&result);
     }
 }
 
@@ -186,20 +201,16 @@ static void serialAcquireThread(void *pvParameters)
         }
         // vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-    
 }
 
-void beep(unsigned int hold = 1000)
+static void displayThread(void *pvParameters)
 {
-    static unsigned int startTime = millis();
-    if (millis() - startTime > hold)
+    while (1)
     {
-        analogWrite(WIO_BUZZER, 128);
-        startTime = millis();
-    }
-    else
-    {
-        analogWrite(WIO_BUZZER, 0);
+        printGasDataToScreen(gasData);
+        tft.println();
+        printResultToScreen(&result);
+        vTaskDelay((EI_CLASSIFIER_INTERVAL_MS) / portTICK_PERIOD_MS);
     }
 }
 
@@ -208,7 +219,7 @@ void setup()
     Serial.begin(38400);
     vNopDelayMS(1000); // prevents usb driver crash on startup, do not omit this
     while (!Serial)
-      ; // wait for serial port to connect. Needed for native USB port only
+        ; // wait for serial port to connect. Needed for native USB port only
 
     pinMode(FAN_PIN, OUTPUT);
 
@@ -240,9 +251,10 @@ void setup()
     // finally
     beep(500);
 
-    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_readTask);
-    xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_classifyTask);
-    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_serialAcquireTask);
+    xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_readTask);
+    xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
+    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_serialAcquireTask);
+    xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 6, &Handle_displayTask);
     xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
     vTaskStartScheduler();
 }
