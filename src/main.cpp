@@ -80,15 +80,34 @@ void printGasDataToScreen(GasData gasData[])
     }
 }
 
-void printResultToScreen(ei_impulse_result_t *result)
+static void printResultToScreen(ei_impulse_result_t *result)
 {
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextSize(2);
     tft.println("Inferencing Result:");
+    const char* decisionLabel = "";
+    float maxConfidence = 0.0;
+    static const char* prevLabel = "";
     for (size_t ix = 0; ix < EI_CLASSIFIER_LABEL_COUNT; ix++)
     {
+        if (result->classification[ix].value > maxConfidence)
+        {
+            maxConfidence = result->classification[ix].value;
+            decisionLabel = result->classification[ix].label;
+        }
+
         tft.printf("%s: %.2f\n", result->classification[ix].label, result->classification[ix].value);
+
     }
+    // clear prev decision by setting foreground and background to black
+    if (prevLabel != decisionLabel){
+        tft.setTextColor(TFT_BLACK, TFT_BLACK);
+        tft.printf("Decision: %s", prevLabel);
+        tft.setCursor(0, tft.getCursorY());
+        tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    }
+    tft.printf("Decision: %s", decisionLabel);
+    prevLabel = decisionLabel;
 }
 
 void beep(unsigned int hold = 1000)
