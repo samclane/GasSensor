@@ -2,10 +2,11 @@
 #include <TFT_eSPI.h>
 #include <Wire.h>
 #include <Multichannel_Gas_GMXXX.h>
-#include <samclane-project-1_inferencing.h>
+#include <GasSensor_inferencing.h>
 #include <Seeed_Arduino_FreeRTOS.h>
 
 #define FAN_PIN D0
+#define BAUD_RATE 38400
 
 GAS_GMXXX<TwoWire> gas;
 
@@ -219,7 +220,7 @@ static void serialAcquireThread(void *pvParameters)
             }
             Serial.println();
         }
-        vTaskDelay(portTICK_PERIOD_MS);
+        vTaskDelay(1 / portTICK_PERIOD_MS);
     }
 }
 
@@ -279,10 +280,10 @@ static void readInputThread(void *pvParameters)
 
 void setup()
 {
-    Serial.begin(38400);
+    Serial.begin(BAUD_RATE);
     vNopDelayMS(1000); // prevents usb driver crash on startup, do not omit this
-    while (!Serial)
-        ; // wait for serial port to connect. Needed for native USB port only
+    // while (!Serial)
+    //     ; // wait for serial port to connect. Needed for native USB port only
 
     pinMode(FAN_PIN, OUTPUT);
 
@@ -314,12 +315,12 @@ void setup()
     // finally
     beep(500);
 
+    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 7, &Handle_serialAcquireTask);
     xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
     xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
     xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_readTask);
     xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_inhaleTask);
     xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_readInputTask);
-    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_serialAcquireTask);
     vTaskStartScheduler();
 }
 
