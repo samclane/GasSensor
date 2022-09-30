@@ -4,6 +4,8 @@
 #include <Multichannel_Gas_GMXXX.h>
 #include <GasSensor_inferencing.h>
 #include <Seeed_Arduino_FreeRTOS.h>
+#include <TFT_eWidget.h>               // Widget library
+
 
 #define FAN_PIN D0
 #define BAUD_RATE 38400
@@ -11,8 +13,11 @@
 GAS_GMXXX<TwoWire> gas;
 
 TFT_eSPI tft;
+GraphWidget gr = GraphWidget(&tft);    // Graph widget gr instance with pointer to tft
+TraceWidget tr = TraceWidget(&gr);     // Graph trace tr with pointer to gr
 
-bool aquireMode = true;
+bool aquireMode = false;
+bool graphMode = false;
 
 TaskHandle_t Handle_readTask;
 TaskHandle_t Handle_inhaleTask;
@@ -29,6 +34,9 @@ enum GasType
     VOC,
     CO
 };
+
+// create a color array for each gas type
+uint16_t gasColors[] = {TFT_RED, TFT_GREEN, TFT_WHITE, TFT_YELLOW};
 
 struct GasData
 {
@@ -109,6 +117,60 @@ static void printResultToScreen(ei_impulse_result_t *result)
     }
     tft.printf("Decision: %s", decisionLabel);
     prevLabel = decisionLabel;
+}
+
+void setupGraph()
+{
+    tft.fillScreen(TFT_BLACK);
+    gr.createGraph(200, 150, tft.color565(5, 5, 5));
+    gr.setGraphScale(0.0, 100, 0, 1200);
+    gr.setGraphGrid(0, 20, 0, 64, TFT_BLUE);
+    gr.drawGraph(40, 10);
+
+    for(int i = 0; i < 4; i++) {
+        tr.startTrace(gasColors[i]);
+        tr.addPoint(0.0, gasData[i].concentration);
+    }
+}
+
+static void graphData(GasData gasData[]) 
+{
+    static uint32_t plotTime = millis();
+    static float gx = 0.0, gy = 0.0;
+    static float delta = 10.0;
+
+    if (millis() - plotTime >= 100)
+    {
+        plotTime = millis();
+        for(int i = 0; i < 4; i++) {
+            tr.startTrace(gasColors[i]);
+            tr.addPoint(gx, gasData[i].concentration);
+        }
+        gx += 1.0;
+        if (gy >= 500) delta = -10.0;
+        if (gy <= 0) delta = 10.0;
+        gy += delta;
+
+        if (gx >= 100)
+        {
+            gx = 0.0;
+            gy = 0.0;
+            gr.drawGraph(40, 10);
+        }
+
+    }
+
+    tft.setCursor(10, 170);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(2);
+    for (int i = 0; i < 4; i++)
+    {
+        tft.setTextColor(gasColors[i], TFT_BLACK);
+        tft.print(gasData[i].name);
+        tft.print(": ");
+        tft.print(gasData[i].concentration);
+        tft.println(" ppm");
+    }
 }
 
 void beep(unsigned int hold = 1000)
@@ -228,9 +290,14 @@ static void displayThread(void *pvParameters)
 {
     while (1)
     {
-        printGasDataToScreen(gasData);
-        tft.println();
-        printResultToScreen(&result);
+        if (!graphMode)
+        {
+            printGasDataToScreen(gasData);
+            tft.println();
+            printResultToScreen(&result);        
+        } else {
+            graphData(gasData);
+        }
         vTaskDelay((EI_CLASSIFIER_INTERVAL_MS) / portTICK_PERIOD_MS);
     }
 }
@@ -242,17 +309,24 @@ static void readInputThread(void *pvParameters)
     {
         if (digitalRead(WIO_KEY_A) == LOW)
         {
+            tft.fillScreen(TFT_BLACK);
+            graphMode = false;
             aquireMode = true;
             Serial.println("Acquire Mode");
         }
         if (digitalRead(WIO_KEY_B) == LOW)
         {
+            tft.fillScreen(TFT_BLACK);
+            graphMode = false;
             aquireMode = false;
             Serial.println("Inferencing Mode");
         }
         if (digitalRead(WIO_KEY_C) == LOW)
         {
-            Serial.println("Reset");
+            setupGraph();
+            aquireMode = false;
+            graphMode = true;
+            Serial.println("Graph Mode");
         }
         if (digitalRead(WIO_5S_UP) == LOW)
         {
@@ -319,8 +393,8 @@ void setup()
     xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
     xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
     xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_readTask);
-    xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 2, &Handle_inhaleTask);
-    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_readInputTask);
+    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 9, &Handle_readInputTask);
+    xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
     vTaskStartScheduler();
 }
 
