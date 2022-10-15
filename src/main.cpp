@@ -5,6 +5,8 @@
 #include <GasSensor_inferencing.h>
 #include <Seeed_Arduino_FreeRTOS.h>
 #include <TFT_eWidget.h>               // Widget library
+#include <rpcWiFi.h>
+#include <secrets.h>
 
 
 #define FAN_PIN D0
@@ -298,6 +300,9 @@ static void displayThread(void *pvParameters)
         } else {
             graphData(gasData);
         }
+        // if (WiFi.status() != WL_CONNECTED) {
+        //     Serial.println("WiFi not connected");
+        // }
         vTaskDelay((EI_CLASSIFIER_INTERVAL_MS) / portTICK_PERIOD_MS);
     }
 }
@@ -389,12 +394,12 @@ void setup()
     // finally
     beep(500);
 
-    xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 7, &Handle_serialAcquireTask);
+    xTaskCreate(serialAcquireThread, "serialAcquireThread", 512, NULL, tskIDLE_PRIORITY + 7, &Handle_serialAcquireTask);
     xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
     xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
     xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_readTask);
-    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 9, &Handle_readInputTask);
-    xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
+    xTaskCreate(readInputThread, "readInputThread", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 9, &Handle_readInputTask);
+    xTaskCreate(inhaleThread, "inhaleThread", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
     vTaskStartScheduler();
 }
 
