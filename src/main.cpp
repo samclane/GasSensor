@@ -198,6 +198,19 @@ static void readSensorsThread(void *pvParameters)
         gasData[C2H5OH].concentration = gas.getGM302B();
         gasData[VOC].concentration = gas.getGM502B();
         gasData[CO].concentration = gas.getGM702B();
+        // check for alarms
+        for (int i = 0; i < 4; i++)
+        {
+            if (gasData[i].concentration > gasData[i].maxConcentration)
+            {
+                gasData[i].alarm = true;
+                beep(50);
+            }
+            else
+            {
+                gasData[i].alarm = false;
+            }
+        }
     }
 }
 
@@ -397,11 +410,11 @@ void setup()
     // finally
     beep(100);
 
+    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 9, &Handle_readInputTask);
     xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 7, &Handle_serialAcquireTask);
     xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
     xTaskCreate(classifyThread, "classifyThread", 1024, NULL, tskIDLE_PRIORITY + 4, &Handle_classifyTask);
     xTaskCreate(readSensorsThread, "readSensorsThread", 1024, NULL, tskIDLE_PRIORITY + 3, &Handle_readTask);
-    xTaskCreate(readInputThread, "readInputThread", 1024, NULL, tskIDLE_PRIORITY + 9, &Handle_readInputTask);
     xTaskCreate(inhaleThread, "inhaleThread", 1024, NULL, tskIDLE_PRIORITY + 1, &Handle_inhaleTask);
     vTaskStartScheduler();
 }
