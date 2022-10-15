@@ -175,16 +175,19 @@ static void graphData(GasData gasData[])
 
 void beep(unsigned int hold = 1000)
 {
-    static unsigned int startTime = millis();
-    if (millis() - startTime > hold)
-    {
-        analogWrite(WIO_BUZZER, 128);
-        startTime = millis();
-    }
-    else
-    {
-        analogWrite(WIO_BUZZER, 0);
-    }
+    // static unsigned int startTime = millis();
+    // if (millis() - startTime > hold)
+    // {
+    //     analogWrite(WIO_BUZZER, 128);
+    //     startTime = millis();
+    // }
+    // else
+    // {
+    //     analogWrite(WIO_BUZZER, 0);
+    // }
+    analogWrite(WIO_BUZZER, 128);
+    delay(hold);
+    analogWrite(WIO_BUZZER, 0);
 }
 
 static void readSensorsThread(void *pvParameters)
@@ -307,6 +310,11 @@ static void readInputThread(void *pvParameters)
     // read buttons and 5-way switch
     while (1)
     {
+        // if any button is pressed beep
+        if (digitalRead(WIO_KEY_A) == LOW || digitalRead(WIO_KEY_B) == LOW || digitalRead(WIO_KEY_C) == LOW)
+        {
+            beep(100);
+        }
         if (digitalRead(WIO_KEY_A) == LOW)
         {
             tft.fillScreen(TFT_BLACK);
@@ -387,7 +395,7 @@ void setup()
     }
 
     // finally
-    beep(500);
+    beep(100);
 
     xTaskCreate(serialAcquireThread, "serialAcquireThread", 1024, NULL, tskIDLE_PRIORITY + 7, &Handle_serialAcquireTask);
     xTaskCreate(displayThread, "displayThread", 1024, NULL, tskIDLE_PRIORITY + 5, &Handle_displayTask);
